@@ -2,8 +2,9 @@ from fastapi import APIRouter, HTTPException
 from datetime import datetime, date
 from models.search_models import SearchInput
 from opensearch_client.client import get_client
-from config.settings import OPENSEARCH_INDEX
+from config.settings import OPENSEARCH_INDEX, ENABLE_AI_EXPANSION
 from utils.response import success_response
+from utils.ai_expander import expand_with_ai
 
 router = APIRouter()
 
@@ -74,9 +75,15 @@ def search(payload: SearchInput):
         raise HTTPException(400, "date_to cannot be in the future")
 
     # ---------------------------
-    # Keyword parsing
+    # Keyword parsing + AI expansion (OPTIONAL)
     # ---------------------------
-    keywords = parse_keywords(payload.keyword)
+    final_keyword = payload.keyword
+
+    if ENABLE_AI_EXPANSION:
+        final_keyword = expand_with_ai(payload.keyword)
+
+    keywords = parse_keywords(final_keyword)
+    print(f"Search keywords after AI expansion: {keywords}")
 
     # ---------------------------
     # Build keyword queries (SAFE)

@@ -22,3 +22,5 @@ ENABLE_FILETYPE_FILTER = os.getenv("ENABLE_FILETYPE_FILTER", "true").lower() == 
 
 MAX_RESULT_WINDOW = int(os.getenv("MAX_RESULT_WINDOW", 10000))
 DEFAULT_PAGE_SIZE = int(os.getenv("DEFAULT_PAGE_SIZE", 20))
+
+ENABLE_AI_EXPANSION = os.getenv("ENABLE_AI_EXPANSION", "false").lower() == "true"
