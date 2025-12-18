@@ -14,14 +14,19 @@ class OpenSearchIndexer:
         self.client.indices.create(
             index=self.index_name,
             body={
+                "settings": {
+                    "analysis": {
+                        "tokenizer": {"edge_ngram_tokenizer": {"type": "edge_ngram","min_gram": 2,"max_gram": 20,"token_chars": ["letter", "digit"]}},
+                        "analyzer": {"prefix_analyzer": {"type": "custom","tokenizer": "edge_ngram_tokenizer","filter": ["lowercase"]},
+                        "standard_lowercase": {"type": "custom","tokenizer": "standard","filter": ["lowercase"]}}}},
                 "mappings": {
                     "properties": {
                         "path": {"type": "keyword"},
-                        "filename": {"type": "text"},
+                        "filename": {"type": "text","analyzer": "prefix_analyzer","search_analyzer": "standard_lowercase"},
                         "filetype": {"type": "keyword"},
                         "modified": {"type": "date"},
                         "size_bytes": {"type": "long"},
-                        "content": {"type": "text"}
+                        "content": {"type": "text","analyzer": "prefix_analyzer","search_analyzer": "standard_lowercase"}
                     }
                 }
             }
