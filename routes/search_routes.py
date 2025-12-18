@@ -23,6 +23,23 @@ def parse_date_safe(d: str | None):
         )
 
 
+def parse_keywords(raw: str) -> list[str]:
+    """
+    Split keywords by comma or whitespace.
+    Remove empty tokens safely.
+    """
+    if not raw or not raw.strip():
+        raise HTTPException(400, "keyword cannot be empty")
+
+    parts = raw.replace(",", " ").split()
+    keywords = [p.lower().strip() for p in parts if p.strip()]
+
+    if not keywords:
+        raise HTTPException(400, "No valid keywords provided")
+
+    return keywords
+
+
 # ---------------------------
 # Search Endpoint
 # ---------------------------
@@ -57,32 +74,51 @@ def search(payload: SearchInput):
         raise HTTPException(400, "date_to cannot be in the future")
 
     # ---------------------------
-    # Query building
+    # Keyword parsing
     # ---------------------------
-    must = []
+    keywords = parse_keywords(payload.keyword)
+
+    # ---------------------------
+    # Build keyword queries (SAFE)
+    # ---------------------------
+    should_queries = []
+
+    if payload.search_mode == "filename":
+        for kw in keywords:
+            should_queries.append({
+                "match_phrase_prefix": {
+                    "filename": {
+                        "query": kw
+                    }
+                }
+            })
+
+    else:
+        for kw in keywords:
+            should_queries.append({
+                "match": {
+                    "content": {
+                        "query": kw
+                    }
+                }
+            })
+
+    if not should_queries:
+        raise HTTPException(400, "No valid search terms generated")
+
+    must = [{
+        "bool": {
+            "should": should_queries,
+            "minimum_should_match": 1
+        }
+    }]
+
+    # ---------------------------
+    # Filters
+    # ---------------------------
     filters = []
 
-    # Search mode
-    if payload.search_mode == "filename":
-        must.append({
-            "match": {
-                "filename": {
-                    "query": payload.keyword,
-                    "operator": "and"
-                }
-            }
-        })
-    else:
-        must.append({
-            "match": {
-                "content": {
-                    "query": payload.keyword,
-                    "operator": "and"
-                }
-            }
-        })
-
-    # File type filter (ignore "all")
+    # File type filter
     if payload.file_types and "all" not in payload.file_types:
         filters.append({
             "terms": {
@@ -105,18 +141,14 @@ def search(payload: SearchInput):
         })
 
     # Size filter (KB → bytes)
-    if payload.size_from or payload.size_to:
+    if payload.size_from is not None or payload.size_to is not None:
         size_range = {}
-        if payload.size_from:
+        if payload.size_from is not None:
             size_range["gte"] = int(payload.size_from * 1024)
-        if payload.size_to:
+        if payload.size_to is not None:
             size_range["lte"] = int(payload.size_to * 1024)
 
-        filters.append({
-            "range": {
-                "size_bytes": size_range
-            }
-        })
+        filters.append({"range": {"size_bytes": size_range}})
 
     # ---------------------------
     # Final OpenSearch query
@@ -150,7 +182,10 @@ def search(payload: SearchInput):
     # ---------------------------
     # Execute search
     # ---------------------------
-    res = client.search(index=OPENSEARCH_INDEX, body=query)
+    try:
+        res = client.search(index=OPENSEARCH_INDEX, body=query)
+    except Exception as e:
+        raise HTTPException(500, f"Search execution failed: {str(e)}")
 
     # ---------------------------
     # Format response
