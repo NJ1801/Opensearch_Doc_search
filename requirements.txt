@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+opensearch-py
+python-docx
+pymupdf
+openpyxl
+xlrd
+python-pptx
+python-dotenv
